@@ -63,6 +63,14 @@ function addRelayIconToInput(emailInput) {
   };
 
   buttonEl.addEventListener("click", async (e) => {
+    browser.runtime.sendMessage({
+      method: "sendMetricsEvent",
+      eventData: {
+        category: "Addon Input Icon",
+        action: "click",
+      },
+    })
+
     const newRelayAddressResponse = await browser.runtime.sendMessage({
       method: "makeRelayAddress",
       domain: document.location.hostname,

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 
+from google_measurement_protocol import event, report
 from jwt import JWT, jwk_from_dict
 from requests_oauthlib import OAuth2Session
 import sentry_sdk
@@ -23,7 +24,7 @@ from allauth.socialaccount.providers.fxa.views import (
     FirefoxAccountsOAuth2Adapter
 )
 
-from emails.models import RelayAddress
+from emails.models import RelayAddress, Profile
 from .models import Invitations
 
 
@@ -155,6 +156,38 @@ def waitlist(request):
         Invitations.objects.create(fxa_uid=fxa_uid, email=email, active=False)
         status = 201
     return JsonResponse({'email': email}, status=status)
+
+
+# TODO: refactor to consolidate with emails.views
+@csrf_exempt
+def metrics_event(request):
+    request_data = json.loads(request.body)
+    # TODO: set and get ga_uuid in/from add-on, instead of looking it up
+    if (
+        not request.user.is_authenticated and
+        not request_data.get("api_token", False)
+       ):
+        raise PermissionDenied
+    api_token = request_data.get('api_token')
+    user_profile = _get_user_profile(request, api_token)
+    if not user_profile.ga_uuid:
+        return JsonResponse({'msg': 'No GA uuid found'}, status=404)
+    event_data = event(
+        request_data.get('category', None),
+        request_data.get('action', None),
+        request_data.get('label', None),
+        request_data.get('value', None),
+    )
+    resp = report(
+        settings.GOOGLE_ANALYTICS_ID, str(user_profile.ga_uuid), event_data
+    )
+    return JsonResponse({'msg': 'OK'}, status=200)
+
+
+def _get_user_profile(request, api_token):
+    if not request.user.is_authenticated:
+        return Profile.objects.get(api_token=api_token)
+    return request.user.profile_set.first()
 
 
 @csrf_exempt

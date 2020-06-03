@@ -2,6 +2,19 @@ const RELAY_SITE_ORIGIN = "http://127.0.0.1:8000";
 
 browser.storage.local.set({ "maxNumAliases": 5 });
 
+
+function sendMetricsEvent(eventData) {
+  const sendMetricsEventUrl = `${RELAY_SITE_ORIGIN}/metrics-event`;
+  fetch(sendMetricsEventUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(eventData),
+  });
+}
+
+
 async function makeRelayAddress(domain=null) {
   const apiToken = await browser.storage.local.get("apiToken");
 
@@ -84,6 +97,9 @@ browser.runtime.onMessage.addListener(async (m) => {
   switch (m.method) {
     case "makeRelayAddress":
       response = await makeRelayAddress(m.domain);
+      break;
+    case "sendMetricsEvent":
+      response = await sendMetricsEvent(m.eventData);
       break;
   }
 
